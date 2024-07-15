@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8...3.26)
+cmake_minimum_required(VERSION 3.8...3.30)
 
 if (NOT DEFINED PROJECT_NAME AND CISTA_HASH STREQUAL "FNV1A")
   set(CISTA_INSTALL ON)
@@ -54,6 +54,8 @@ option(CISTA_GENERATE_TO_TUPLE "generate include/cista/reflection/to_tuple.h" OF
 option(CISTA_USE_MIMALLOC "compile with mimalloc support" OFF)
 set(CISTA_HASH "FNV1A" CACHE STRING "Options: FNV1A XXH3 WYHASH WYHASH_FASTEST")
 
+enable_testing()
+
 add_library(cista INTERFACE)
 if (CISTA_HASH STREQUAL "XXH3")
   add_subdirectory(tools/xxh3)
@@ -84,11 +86,11 @@ if (${CISTA_GENERATE_TO_TUPLE})
   add_dependencies(cista generate_to_tuple)
 endif()
 
-add_subdirectory(tools/doctest EXCLUDE_FROM_ALL)
+add_subdirectory(tools/doctest)
 
 file(GLOB_RECURSE cista-include-files include/*.h*)
 
-add_subdirectory(tools/uniter EXCLUDE_FROM_ALL)
+add_subdirectory(tools/uniter)
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cista.h
   COMMAND uniter
@@ -104,9 +106,7 @@ add_custom_command(
 
 enable_testing()
 file(GLOB_RECURSE cista-test-files test/*.cc)
-
-add_executable(cista-test-single-header EXCLUDE_FROM_ALL ${cista-test-files} ${CMAKE_CURRENT_BINARY_DIR}/cista.h)
-add_test(NAME cista-test-single-header COMMAND cista-test-single-header)
+add_executable(cista-test-single-header ${cista-test-files} ${CMAKE_CURRENT_BINARY_DIR}/cista.h)
 target_link_libraries(cista-test-single-header cista-doctest)
 target_include_directories(cista-test-single-header PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_compile_options(cista-test-single-header PRIVATE ${cista-compile-flags})
@@ -115,8 +115,9 @@ target_compile_features(cista-test-single-header PRIVATE cxx_std_17)
 if (CISTA_ZERO_OUT)
   target_compile_definitions(cista-test-single-header PRIVATE CISTA_ZERO_OUT=1)
 endif()
+add_test(NAME cista-test-single-header COMMAND cista-test-single-header)
 
-add_executable(cista-test EXCLUDE_FROM_ALL ${cista-test-files})
+add_executable(cista-test ${cista-test-files})
 target_compile_options(cista-test PRIVATE ${cista-compile-flags})
 target_link_libraries(cista-test cista-doctest cista)
 
