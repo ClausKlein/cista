@@ -1,30 +1,37 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.8...3.30)
 
 if (NOT DEFINED PROJECT_NAME AND CISTA_HASH STREQUAL "FNV1A")
   set(CISTA_INSTALL ON)
 endif()
 
-project(cista LANGUAGES CXX VERSION 0.7)
+project(cista LANGUAGES CXX VERSION 0.14.1.1)
 
 include(GNUInstallDirs)
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR
     "${CMAKE_CXX_COMPILER_ID}" STREQUAL "AppleClang")
   set(cista-compile-flags
-     -Wno-unknown-warning-option
-     -Wno-global-constructors
-     -Wno-exit-time-destructors
+     -Wall
+     -Wextra
+     -Wpedantic
      -fno-strict-aliasing
-     -Weverything
-     -Wno-c++98-compat
-     -Wno-c++98-compat-pedantic
-     -Wno-newline-eof
-     -Wno-missing-prototypes
-     -Wno-padded
-     -Wno-double-promotion
-     -Wno-undef
-     -Wno-undefined-reinterpret-cast
-     -Wno-float-conversion
+     -Wno-unknown-warning-option
+     # -Wno-global-constructors
+     # -Wno-exit-time-destructors
+     # -Wno-newline-eof
+     # -Wno-padded
+     # -Wno-double-promotion
+     # -Wno-undef
+     # -Wno-undefined-reinterpret-cast
+     # -Wno-float-conversion
+     # -Wno-gnu-zero-variadic-macro-arguments
+     # -Wno-unknown-pragmas
+     # -Wno-documentation-unknown-command
+     # -Wno-reserved-identifier
+     # -Wno-weak-vtables
+     # -Wno-unneeded-member-function
+     # -Wno-unused-member-function
+     # -Wno-unsafe-buffer-usage
      -Wno-gnu-zero-variadic-macro-arguments
      -Wno-unknown-pragmas
      -Wno-documentation-unknown-command
@@ -36,10 +43,9 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR
      -Wno-deprecated-declarations
      -Wno-ctad-maybe-unsupported
      -Wno-self-assign-overloaded
-     -Werror
   )
 elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-  set(cista-compile-flags -Wall -Wextra)
+  set(cista-compile-flags -Wall -Wextra -Wpedantic)
 endif()
 
 option(CISTA_ZERO_OUT "zero out fresh memory for valgrind" OFF)
@@ -47,6 +53,8 @@ option(CISTA_COVERAGE "generate coverage report" OFF)
 option(CISTA_GENERATE_TO_TUPLE "generate include/cista/reflection/to_tuple.h" OFF)
 option(CISTA_USE_MIMALLOC "compile with mimalloc support" OFF)
 set(CISTA_HASH "FNV1A" CACHE STRING "Options: FNV1A XXH3 WYHASH WYHASH_FASTEST")
+
+enable_testing()
 
 add_library(cista INTERFACE)
 if (CISTA_HASH STREQUAL "XXH3")
@@ -78,11 +86,11 @@ if (${CISTA_GENERATE_TO_TUPLE})
   add_dependencies(cista generate_to_tuple)
 endif()
 
-add_subdirectory(tools/doctest EXCLUDE_FROM_ALL)
+add_subdirectory(tools/doctest)
 
 file(GLOB_RECURSE cista-include-files include/*.h*)
 
-add_subdirectory(tools/uniter EXCLUDE_FROM_ALL)
+add_subdirectory(tools/uniter)
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cista.h
   COMMAND uniter
@@ -96,8 +104,9 @@ add_custom_command(
   DEPENDS ${cista-include-files}
 )
 
+enable_testing()
 file(GLOB_RECURSE cista-test-files test/*.cc)
-add_executable(cista-test-single-header EXCLUDE_FROM_ALL ${cista-test-files} ${CMAKE_CURRENT_BINARY_DIR}/cista.h)
+add_executable(cista-test-single-header ${cista-test-files} ${CMAKE_CURRENT_BINARY_DIR}/cista.h)
 target_link_libraries(cista-test-single-header cista-doctest)
 target_include_directories(cista-test-single-header PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_compile_options(cista-test-single-header PRIVATE ${cista-compile-flags})
@@ -106,26 +115,30 @@ target_compile_features(cista-test-single-header PRIVATE cxx_std_17)
 if (CISTA_ZERO_OUT)
   target_compile_definitions(cista-test-single-header PRIVATE CISTA_ZERO_OUT=1)
 endif()
+add_test(NAME cista-test-single-header COMMAND cista-test-single-header)
 
-add_executable(cista-test EXCLUDE_FROM_ALL ${cista-test-files})
+add_executable(cista-test ${cista-test-files})
 target_compile_options(cista-test PRIVATE ${cista-compile-flags})
 target_link_libraries(cista-test cista-doctest cista)
-if(CISTA_COVERAGE)
+
+if (CISTA_COVERAGE)
   target_compile_options(cista-test PRIVATE -fprofile-arcs -ftest-coverage)
   set_target_properties(cista-test PROPERTIES LINK_FLAGS --coverage)
-endif()
 
-add_custom_target(cista-coverage
-  rm -rf *.info &&
-  find . -name "*.gcda" -delete &&
-  ./cista-test &&
-  lcov --directory . --capture --output-file cov.info &&
-  lcov -r cov.info "*usr/include/*" -o cov.info &&
-  lcov -r cov.info "*doctest*" -o cov.info &&
-  lcov -r cov.info "*test/*.cc" -o cov.info &&
-  lcov -r cov.info "*v1*" -o cov.info
-)
-add_dependencies(cista-coverage cista-test)
+  add_custom_target(cista-coverage
+    rm -rf *.info &&
+    find . -name "*.gcda" -delete &&
+    ./cista-test &&
+    lcov --directory . --capture --output-file cov.info &&
+    lcov -r cov.info "*usr/include/*" -o cov.info &&
+    lcov -r cov.info "*doctest*" -o cov.info &&
+    lcov -r cov.info "*test/*.cc" -o cov.info &&
+    lcov -r cov.info "*v1*" -o cov.info
+  )
+  add_dependencies(cista-coverage cista-test)
+else()
+  add_test(NAME cista-test COMMAND cista-test)
+endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR
     "${CMAKE_CXX_COMPILER_ID}" STREQUAL "AppleClang")
